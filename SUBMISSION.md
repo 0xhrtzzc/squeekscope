@@ -9,8 +9,8 @@
 | Field | Isi |
 |---|---|
 | **Judul** | SqueekScope |
-| **Repo** | _(tempel URL GitHub setelah push)_ |
-| **Live URL** | https://8842-agqx5wjv3jtakqlnabor425bxu.instabox.tech |
+| **Repo** | https://github.com/0xhrtzzc/squeekscope |
+| **Live URL** | https://0xhrtzzc.github.io/squeekscope/ |
 | **Kategori** | Tool / Dashboard / Explorer |
 | **Attribution** | wallet Genesis yang mau dikasih badge |
 

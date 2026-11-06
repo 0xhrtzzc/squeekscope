@@ -9,7 +9,7 @@ Built against the project's public read API
 
 ![SqueekScope dashboard](docs/screenshot.png)
 
-**Live demo:** https://8842-agqx5wjv3jtakqlnabor425bxu.instabox.tech
+**Live demo:** https://0xhrtzzc.github.io/squeekscope/
 
 ## What it shows
 
