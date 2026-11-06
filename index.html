@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SqueekScope — live Squeekchain dashboard</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#14171c; --line:#242a33; --txt:#e8edf3;
+    --dim:#8b97a6; --ok:#3ddc97; --warn:#ffc857; --bad:#ff5d5d; --accent:#7fd1ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:20px}
+  h1{font-size:18px;margin:0 0 2px;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:18px}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+  .v{font-size:22px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .v small{font-size:12px;color:var(--dim);margin-left:4px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .ok{background:var(--ok)} .idle{background:var(--warn)} .off{background:var(--bad)}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-size:11px;text-transform:uppercase}
+  .bar{height:8px;background:#1d222a;border-radius:4px;overflow:hidden;margin-top:8px}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,#7fd1ff,#3ddc97)}
+  #log{max-height:260px;overflow:auto}
+  .tag{font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
+  .flex{display:flex;justify-content:space-between;align-items:baseline}
+  footer{color:var(--dim);font-size:11px;margin-top:20px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>SQUEEKSCOPE</h1>
+<div class="sub">Live Squeekchain dashboard · Sepolia testnet · data from api.squeekchain.com</div>
+
+<div class="grid">
+  <div class="card"><div class="k">Hamster</div>
+    <div class="v" id="fresh"><span class="dot idle"></span>—</div>
+    <div class="k" id="prov" style="margin-top:6px">provenance —</div></div>
+  <div class="card"><div class="k">Squeek blocks</div>
+    <div class="v" id="blocks">—</div>
+    <div class="bar"><i id="prog" style="width:0%"></i></div>
+    <div class="k" id="progTxt" style="margin-top:4px">—</div></div>
+  <div class="card"><div class="k">Wheel speed</div>
+    <div class="v" id="speed">—<small>mm/s</small></div>
+    <div class="k" id="rpm" style="margin-top:6px">rpm —</div></div>
+  <div class="card"><div class="k">Work units</div>
+    <div class="v" id="work">—</div>
+    <div class="k" id="diff" style="margin-top:6px">difficulty —</div></div>
+  <div class="card"><div class="k">SQK live supply</div>
+    <div class="v" id="supply">—</div>
+    <div class="k" id="burned" style="margin-top:6px">burned —</div></div>
+  <div class="card"><div class="k">Staking</div>
+    <div class="v" id="staked">—<small>SQK</small></div>
+    <div class="k" id="stakers" style="margin-top:6px">NFT power —</div></div>
+  <div class="card"><div class="k">Settlements</div>
+    <div class="v" id="settles">—</div>
+    <div class="k" id="lastSettle" style="margin-top:6px">—</div></div>
+  <div class="card"><div class="k">Next round</div>
+    <div class="v" id="round">—</div>
+    <div class="k" id="roundState" style="margin-top:6px">—</div></div>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <div class="flex"><div class="k">Recent settlements</div><span class="tag" id="upd">—</span></div>
+  <table><thead><tr><th>round</th><th>blocks</th><th>work</th><th>SQK minted</th><th>eth blk</th></tr></thead>
+  <tbody id="rows"></tbody></table>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <div class="k">Live event feed</div>
+  <div id="log"></div>
+</div>
+
+<footer>Read-only. Blocks are Squeek blocks (1,000,000,000 units each), not Ethereum blocks.
+Data: <a href="https://docs.squeekchain.com/developers/api/">Squeekchain public API</a> · refreshes every 5s.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, d=2) => {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return String(v);
+  if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(d) + 'B';
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(d) + 'M';
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(d) + 'K';
+  return n.toLocaleString(undefined, {maximumFractionDigits: d});
+};
+const wei = v => Number(v) / 1e18;
+const ago = iso => {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return Math.round(s) + 's ago';
+  if (s < 3600) return Math.round(s/60) + 'm ago';
+  return Math.round(s/3600) + 'h ago';
+};
+async function get(p) {
+  const r = await fetch('/api/' + p);
+  if (!r.ok) throw new Error(p + ' ' + r.status);
+  return r.json();
+}
+
+let lastEvents = new Set();
+
+async function tick() {
+  try {
+    const [st, core, eco, setl, ev] = await Promise.all([
+      get('status'), get('core'), get('economy/state'),
+      get('settlements'), get('events')
+    ]);
+
+    // hamster
+    const m = st.measurement || {};
+    const live = m.freshness === 'online';
+    $('fresh').innerHTML = `<span class="dot ${live ? 'ok' : 'off'}"></span>${live ? 'RUNNING' : 'IDLE'}`;
+    $('prov').textContent = 'provenance ' + (m.provenance || '—');
+    $('speed').innerHTML = fmt(m.speedMmPerSecond, 1) + '<small>mm/s</small>';
+    $('rpm').textContent = 'rpm ' + fmt((m.rpmMilli || 0) / 1000, 2);
+
+    // blocks
+    const c = core.core || {};
+    $('blocks').textContent = fmt(c.blockHeight, 0);
+    const prog = Number(c.blockProgress || 0) / 1e9 * 100;
+    $('prog').style.width = Math.min(100, prog).toFixed(1) + '%';
+    $('progTxt').textContent = prog.toFixed(1) + '% to next block';
+    $('work').textContent = fmt(c.cumulativeWork, 0);
+    $('diff').textContent = 'difficulty ' + fmt(c.workPerThousandBlocks, 0) + '/1k blocks';
+
+    // economy
+    const sup = eco.supply || {}, stk = eco.staking || {};
+    $('supply').textContent = fmt(wei(sup.liveSupplyBaseUnits), 2);
+    $('burned').textContent = 'burned ' + fmt(wei(sup.totalBurnedBaseUnits), 2);
+    $('staked').innerHTML = fmt(wei(stk.totalStakedBaseUnits), 2) + '<small>SQK</small>';
+    $('stakers').textContent = 'NFT power ' + fmt(wei(stk.totalNftPower), 0);
+
+    // settlements
+    const sum = setl.summary || {};
+    $('settles').textContent = fmt(sum.settlementCount, 0);
+    const recent = (setl.recentSettlements || []).slice(0, 6);
+    if (recent[0]) $('lastSettle').textContent = 'last ' + ago(recent[0].blockTimestamp);
+
+    $('rows').innerHTML = recent.map(s => `<tr>
+      <td>${s.settledThroughRound}</td>
+      <td>${s.completedBlockCount}</td>
+      <td>${fmt(s.workAdded, 0)}</td>
+      <td>${fmt(wei(s.sqkMintedBaseUnits), 2)}</td>
+      <td>${s.ethereumBlockNumber}</td></tr>`).join('') || '<tr><td colspan="5">no data</td></tr>';
+
+    // next round
+    const nr = (setl.mining || {}).nextRound || {};
+    $('round').textContent = '#' + (nr.round || '—');
+    const ends = nr.endsAt ? new Date(nr.endsAt) : null;
+    $('roundState').textContent = nr.state + (ends ? ' · ends ' + ends.toISOString().slice(11,16) + 'Z' : '');
+
+    // events
+    const evs = (ev.events || []).slice(0, 18);
+    $('log').innerHTML = evs.map(e => {
+      const t = (e.eventType || e.id || '').split('.').pop();
+      return `<div style="padding:3px 0;border-bottom:1px solid var(--line)">
+        <span class="tag">${t}</span>
+        <span style="color:var(--dim);font-size:11px;margin-left:8px">${(e.occurredAt||'').slice(11,19)}Z</span>
+      </div>`;
+    }).join('') || '<div style="color:var(--dim)">no events</div>';
+
+    $('upd').textContent = 'updated ' + new Date().toISOString().slice(11,19) + 'Z';
+  } catch (e) {
+    $('upd').textContent = 'error: ' + e.message;
+  }
+}
+tick();
+setInterval(tick, 5000);
+</script>
+</body>
+</html>
