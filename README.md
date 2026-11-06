@@ -28,14 +28,19 @@ and similar are **Squeek blocks** (1,000,000,000 block units each), not Ethereum
 blocks. Large integers arrive as decimal strings and are parsed as numbers here
 (the values stay far below 2^53).
 
-## Why it proxies instead of calling the API from the page
+## Deploy shapes
 
-`api.squeekchain.com` sits behind Cloudflare and does not answer browser
-`fetch()` from a third-party origin — the request fails at CORS/preflight even
-though the docs advertise `Access-Control-Allow-Origin: *`. `server.py`
-(standard library only) does the call server-side with a browser `User-Agent`
-and exposes it as `/api/<path>`, memoised for 3s so a 5s-polling page never
-hammers upstream.
+`index.html` is a self-contained static page that calls
+`https://api.squeekchain.com/v1/...` directly — the API sends
+`access-control-allow-origin: *`, so a browser can read it from any origin.
+
+`server.py` is an **optional** local runner for when you want one origin with no
+third-party requests: it serves the page and re-exposes the API under
+`/api/<path>` (allow-listed, 3s memo). Same page, no changes needed.
+
+One caveat worth knowing: Cloudflare in front of the API rejects an obvious
+`HeadlessChrome` User-Agent. A normal browser is fine; automated checks need to
+send a desktop UA.
 
 ## Run
 

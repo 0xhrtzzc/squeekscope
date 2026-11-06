@@ -77,7 +77,7 @@
 </div>
 
 <footer>Read-only. Blocks are Squeek blocks (1,000,000,000 units each), not Ethereum blocks.
-Data: <a href="https://docs.squeekchain.com/developers/api/">Squeekchain public API</a> · refreshes every 5s.</footer>
+Data: <a href="https://docs.squeekchain.com/developers/api/">Squeekchain public API</a> · refreshes every 5s · static page, no proxy.</footer>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -97,8 +97,9 @@ const ago = iso => {
   if (s < 3600) return Math.round(s/60) + 'm ago';
   return Math.round(s/3600) + 'h ago';
 };
+const API_BASE = 'https://api.squeekchain.com/v1/';
 async function get(p) {
-  const r = await fetch('/api/' + p);
+  const r = await fetch(API_BASE + p, {headers:{'Accept':'application/json'}});
   if (!r.ok) throw new Error(p + ' ' + r.status);
   return r.json();
 }
